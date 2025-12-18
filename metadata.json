@@ -1,0 +1,8 @@
+{
+  "name": "MedSearat - Sistema Médico Digital",
+  "description": "Um sistema médico digital profissional e completo com gestão de pacientes, evolução clínica, comunidade médica e assistente de IA integrada.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

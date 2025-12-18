@@ -1,11 +1,24 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Standardizing initialization to use process.env.API_KEY directly as per guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+/**
+ * Generates medical advice using the Sear AI assistant.
+ * Follows the @google/genai coding guidelines.
+ */
 export const getMedicalAdvice = async (prompt: string): Promise<string> => {
+  // Use process.env.API_KEY directly as per requirements
+  const apiKey = process.env.API_KEY;
+  
+  if (!apiKey) {
+    console.error("MedSearat Error: API_KEY não configurada no ambiente.");
+    return "O Sear AI está temporariamente desativado (Chave de API ausente). Por favor, contate o suporte.";
+  }
+
   try {
+    // Initializing Gemini API with the required parameter format
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Using gemini-3-pro-preview for complex medical reasoning tasks
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
@@ -16,13 +29,14 @@ export const getMedicalAdvice = async (prompt: string): Promise<string> => {
         - Use linguagem médica técnica e profissional.
         - Formate a resposta como um artigo médico curto.
         - Use títulos claros, parágrafos bem definidos.
-        - Utilize negrito para destacar termos importantes, mas garanta que a renderização seja limpa (sem asteriscos duplos expostos, se possível, embora em Markdown eles sejam padrão).
+        - Utilize negrito para destacar termos importantes.
         - Use listas (bullets) com bom espaçamento.
         - Sempre inclua uma nota de que a decisão final cabe ao médico assistente.`,
         temperature: 0.7,
       }
     });
-    // Property access .text used correctly for GenerateContentResponse
+    
+    // Extracting text output directly from the .text property of GenerateContentResponse
     return response.text || "Desculpe, não consegui processar sua solicitação no momento.";
   } catch (error) {
     console.error("Sear AI Error:", error);

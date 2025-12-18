@@ -11,18 +11,6 @@ import Profile from './pages/Profile';
 import { StorageService } from './services/storageService';
 import { Stethoscope, LogIn, ShieldCheck, User, Lock, Mail, AlertTriangle, Loader2 } from 'lucide-react';
 
-// Fallback de erro simples
-const ErrorFallback = ({ message }: { message: string }) => (
-  <div className="h-screen flex flex-col items-center justify-center bg-red-50 p-8 text-center">
-    <AlertTriangle size={64} className="text-red-500 mb-4" />
-    <h1 className="text-2xl font-bold text-red-900 mb-2">Ops! Ocorreu um erro crítico.</h1>
-    <p className="text-red-700 mb-6">{message}</p>
-    <button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold">
-      Reiniciar Aplicativo
-    </button>
-  </div>
-);
-
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState<any>(null);
@@ -73,12 +61,17 @@ const App: React.FC = () => {
   useEffect(() => {
     const initApp = () => {
       try {
-        const db = JSON.parse(localStorage.getItem('medsearat_db_v1') || '{}');
-        if (db && db.user) setUser(db.user);
+        const dbStr = localStorage.getItem('medsearat_db_v1');
+        if (dbStr) {
+          const db = JSON.parse(dbStr);
+          if (db && db.user) setUser(db.user);
+        }
       } catch (e) {
-        console.error("Erro na carga inicial do storage.");
+        console.error("Erro na carga inicial do storage. Limpando dados corrompidos.");
+        localStorage.removeItem('medsearat_db_v1');
       } finally {
-        setLoading(false);
+        // Garantimos um tempo mínimo de splash screen para estabilidade de scripts externos
+        setTimeout(() => setLoading(false), 800);
       }
     };
     initApp();
@@ -86,9 +79,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!user && !loading) {
-      const timer = setTimeout(() => {
+      const checkGoogle = () => {
         // @ts-ignore
-        if (typeof google !== 'undefined' && google.accounts) {
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
           try {
             // @ts-ignore
             google.accounts.id.initialize({
@@ -97,14 +90,30 @@ const App: React.FC = () => {
               auto_select: false
             });
             const btn = document.getElementById("googleBtn");
-            // @ts-ignore
-            if (btn) google.accounts.id.renderButton(btn, { theme: "outline", size: "large", width: "100%", shape: "pill" });
+            if (btn) {
+              // @ts-ignore
+              google.accounts.id.renderButton(btn, { 
+                theme: "outline", 
+                size: "large", 
+                width: "100%", 
+                shape: "pill" 
+              });
+            }
           } catch (e) {
-            console.warn("Google Auth falhou ao iniciar.");
+            console.warn("Google Auth falhou ao iniciar nesta tentativa.");
           }
         }
+      };
+
+      const interval = setInterval(() => {
+        // @ts-ignore
+        if (typeof google !== 'undefined') {
+          checkGoogle();
+          clearInterval(interval);
+        }
       }, 1000);
-      return () => clearTimeout(timer);
+
+      return () => clearInterval(interval);
     }
   }, [user, loading, isRegistering, handleGoogleResponse]);
 
@@ -130,7 +139,7 @@ const App: React.FC = () => {
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
       <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
-      <p className="text-slate-500 font-bold animate-pulse">Sincronizando MedSearat...</p>
+      <p className="text-slate-500 font-bold animate-pulse">Iniciando MedSearat...</p>
     </div>
   );
 
@@ -143,12 +152,12 @@ const App: React.FC = () => {
               <div className="bg-white p-2 rounded-xl text-blue-600">
                 <Stethoscope size={32} />
               </div>
-              <h1 className="text-4xl font-black tracking-tighter">MedSearat</h1>
+              <h1 className="text-4xl font-black tracking-tighter text-white">MedSearat</h1>
             </div>
             <h2 className="text-6xl font-black leading-tight tracking-tight mb-8">Gestão Médica <br /><span className="text-blue-200">Profissional.</span></h2>
             <div className="flex items-center gap-3 bg-white/10 p-4 rounded-2xl backdrop-blur-md inline-flex">
               <ShieldCheck size={24} className="text-blue-200" />
-              <span className="font-semibold">Segurança HIPAA e Criptografia Local</span>
+              <span className="font-semibold text-white">Segurança HIPAA e Criptografia Local</span>
             </div>
           </div>
         </div>
@@ -194,7 +203,7 @@ const App: React.FC = () => {
                 <div className="flex-grow border-t border-slate-100"></div>
               </div>
 
-              <div id="googleBtn" className="w-full overflow-hidden rounded-full"></div>
+              <div id="googleBtn" className="w-full overflow-hidden rounded-full min-h-[44px]"></div>
 
               <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="w-full text-center text-xs text-slate-500 font-bold hover:text-blue-600">
                 {isRegistering ? 'Já tem conta? Entrar' : 'Não tem conta? Cadastre-se'}
@@ -206,10 +215,9 @@ const App: React.FC = () => {
     );
   }
 
-  // Renderização principal protegida
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab} user={user}>
-      <Suspense fallback={<div className="p-8 text-center text-slate-400">Carregando módulo...</div>}>
+      <Suspense fallback={<div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2"><Loader2 className="animate-spin" size={20} /> Carregando módulo...</div>}>
         {activeTab === 'dashboard' && (
           <Dashboard 
             patients={StorageService.getPatients()} 

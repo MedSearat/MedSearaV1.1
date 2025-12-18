@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { UserCircle, Mail, Calendar, User, Save, Trash2, Camera, AlertTriangle } from 'lucide-react';
+import { UserCircle, Mail, Calendar, User, Save, Trash2, Camera, AlertTriangle, Briefcase } from 'lucide-react';
 import { StorageService } from '../services/storageService';
 import { Gender } from '../types';
 
@@ -8,25 +8,31 @@ const Profile: React.FC<{ user: any }> = ({ user }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     fullName: user?.fullName || '',
+    profession: user?.profession || '',
     age: user?.age || '',
     gender: user?.gender || Gender.MALE,
     avatarUrl: user?.avatarUrl || ''
   });
 
-  const handleSave = () => {
-    StorageService.updateProfile({
-      fullName: formData.fullName,
-      age: parseInt(formData.age.toString()),
-      gender: formData.gender as Gender,
-      avatarUrl: formData.avatarUrl
-    });
-    setIsEditing(false);
-    window.location.reload();
+  const handleSave = async () => {
+    try {
+      await StorageService.updateProfile(user.id, {
+        fullName: formData.fullName,
+        profession: formData.profession,
+        age: formData.age ? parseInt(formData.age.toString()) : undefined,
+        gender: formData.gender as Gender,
+        avatarUrl: formData.avatarUrl
+      });
+      setIsEditing(false);
+      window.location.reload();
+    } catch (error) {
+      alert("Erro ao atualizar perfil.");
+    }
   };
 
-  const handleTerminate = () => {
-    if (confirm("ATENÇÃO: Esta ação é definitiva. Sua conta e todos os dados serão excluídos. Você não poderá fazer login novamente com este email. Deseja prosseguir?")) {
-      StorageService.deleteAccount();
+  const handleTerminate = async () => {
+    if (confirm("ATENÇÃO: Esta ação é definitiva. Sua conta e todos os dados serão excluídos. Deseja prosseguir?")) {
+      await StorageService.deleteAccount();
     }
   };
 
@@ -53,7 +59,7 @@ const Profile: React.FC<{ user: any }> = ({ user }) => {
         <div className="px-8 pb-8">
           <div className="relative -mt-16 mb-6">
             <div className="relative inline-block">
-              <img src={formData.avatarUrl || user?.avatarUrl} className="w-32 h-32 rounded-3xl border-4 border-white shadow-xl object-cover bg-white" />
+              <img src={formData.avatarUrl || user?.avatarUrl || `https://picsum.photos/seed/${user?.email}/200`} className="w-32 h-32 rounded-3xl border-4 border-white shadow-xl object-cover bg-white" />
               {isEditing && (
                 <label className="absolute bottom-2 right-2 p-2 bg-blue-600 text-white rounded-full cursor-pointer shadow-lg hover:bg-blue-700 transition-all">
                   <Camera size={18} />
@@ -71,12 +77,15 @@ const Profile: React.FC<{ user: any }> = ({ user }) => {
                   <p className="text-lg font-bold text-slate-800 flex items-center gap-2"><User size={18} className="text-blue-500" /> {user.fullName}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Email Profissional</p>
-                  <p className="text-lg font-bold text-slate-800 flex items-center gap-2"><Mail size={18} className="text-blue-500" /> {user.email}</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Profissão / Cargo</p>
+                  <p className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <Briefcase size={18} className="text-blue-500" /> 
+                    {user.profession || <span className="text-slate-300 italic">Não informado</span>}
+                  </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Idade</p>
-                  <p className="text-lg font-bold text-slate-800 flex items-center gap-2"><Calendar size={18} className="text-blue-500" /> {user.age || 'Não informado'}</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Email Profissional</p>
+                  <p className="text-lg font-bold text-slate-800 flex items-center gap-2"><Mail size={18} className="text-blue-500" /> {user.email}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Gênero</p>
@@ -98,6 +107,10 @@ const Profile: React.FC<{ user: any }> = ({ user }) => {
                   <input type="text" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-600">Profissão (Ex: Médico, Estudante, etc)</label>
+                  <input type="text" value={formData.profession} onChange={e => setFormData({...formData, profession: e.target.value})} className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ex: Médico Cardiologista" />
+                </div>
+                <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-600">Idade</label>
                   <input type="number" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
@@ -112,7 +125,7 @@ const Profile: React.FC<{ user: any }> = ({ user }) => {
               </div>
               <div className="flex gap-4 pt-6">
                 <button onClick={() => setIsEditing(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Cancelar</button>
-                <button onClick={handleSave} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 flex items-center justify-center gap-2">
+                <button onClick={handleSave} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 flex items-center justify-center gap-2 transition-all">
                   <Save size={18} /> Salvar Alterações
                 </button>
               </div>

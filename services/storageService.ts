@@ -1,205 +1,248 @@
 
-import { AppState, UserProfile, Patient, Note, CommunityPost, Evolution, ClinicalFile } from '../types';
-
-const STORAGE_KEY = 'medsearat_db_v1';
-
-const INITIAL_STATE: AppState = {
-  user: null,
-  patients: [],
-  evolutions: [],
-  notes: [],
-  communityPosts: []
-};
+import { supabase } from './supabase';
+import { UserProfile, Patient, Note, CommunityPost, Evolution, ClinicalFile, CommunityComment } from '../types';
 
 export class StorageService {
-  private static getState(): AppState {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      if (!data) return INITIAL_STATE;
-      
-      const parsed = JSON.parse(data);
-      // Garantir que todas as propriedades obrigatórias existam
+  
+  // AUTH METHODS
+  static async getCurrentUser() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profile) {
       return {
-        user: parsed.user || null,
-        patients: Array.isArray(parsed.patients) ? parsed.patients : [],
-        evolutions: Array.isArray(parsed.evolutions) ? parsed.evolutions : [],
-        notes: Array.isArray(parsed.notes) ? parsed.notes : [],
-        communityPosts: Array.isArray(parsed.communityPosts) ? parsed.communityPosts : []
+        id: profile.id,
+        email: profile.email,
+        fullName: profile.full_name,
+        profession: profile.profession,
+        avatarUrl: profile.avatar_url,
+        age: profile.age,
+        gender: profile.gender
       };
-    } catch (e) {
-      console.error("Storage Corrompido. Resetando para estado inicial.", e);
-      localStorage.removeItem(STORAGE_KEY);
-      return INITIAL_STATE;
     }
+
+    return {
+      id: session.user.id,
+      email: session.user.email,
+      fullName: session.user.user_metadata.full_name || session.user.email?.split('@')[0],
+      avatarUrl: session.user.user_metadata.avatar_url,
+      profession: ''
+    };
   }
 
-  private static saveState(state: AppState) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) {
-      console.error("Erro ao salvar no Storage:", e);
-    }
+  static async logout() {
+    await supabase.auth.signOut();
   }
 
-  static login(email: string, fullName: string, avatarUrl: string): UserProfile {
-    const state = this.getState();
-    const deletedUsers = JSON.parse(localStorage.getItem('medsearat_deleted_users') || '[]');
-    
-    if (deletedUsers.includes(email)) {
-       throw new Error("Esta conta foi encerrada definitivamente.");
-    }
-
-    const user: UserProfile = {
-      id: state.user?.id || crypto.randomUUID(),
-      email,
-      fullName,
-      avatarUrl,
-      createdAt: state.user?.createdAt || new Date().toISOString()
+  static async updateProfile(id: string, updates: Partial<UserProfile>) {
+    const dbUpdates: any = {
+      updated_at: new Date().toISOString()
     };
     
-    state.user = user;
-    this.saveState(state);
-    return user;
+    if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
+    if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
+    if (updates.profession !== undefined) dbUpdates.profession = updates.profession;
+    if (updates.age !== undefined) dbUpdates.age = updates.age;
+    if (updates.gender !== undefined) dbUpdates.gender = updates.gender;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({ id, ...dbUpdates })
+      .select()
+      .single();
+      
+    if (error) throw error;
+    return data;
   }
 
-  static logout() {
-    const state = this.getState();
-    state.user = null;
-    this.saveState(state);
+  static async deleteAccount() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('profiles').delete().eq('id', user.id);
+    await supabase.auth.signOut();
+    window.location.reload();
   }
 
-  static deleteAccount() {
-    const state = this.getState();
-    if (state.user) {
-      const deletedUsers = JSON.parse(localStorage.getItem('medsearat_deleted_users') || '[]');
-      deletedUsers.push(state.user.email);
-      localStorage.setItem('medsearat_deleted_users', JSON.stringify(deletedUsers));
-      localStorage.removeItem(STORAGE_KEY);
-      window.location.reload();
-    }
+  // PATIENT METHODS
+  static async getPatients() {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*')
+      .order('name', { ascending: true });
+    if (error) return [];
+    return data as Patient[];
   }
 
-  static updateProfile(data: Partial<UserProfile>): UserProfile {
-    const state = this.getState();
-    if (!state.user) throw new Error("Não autenticado");
-    state.user = { ...state.user, ...data };
-    this.saveState(state);
-    return state.user;
+  static async addPatient(patient: any, files: ClinicalFile[]) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Não autenticado");
+
+    const { data, error } = await supabase
+      .from('patients')
+      .insert([{
+        ...patient,
+        doctor_id: user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  static addPatient(patient: Omit<Patient, 'id' | 'createdAt' | 'updatedAt' | 'doctorId' | 'files'>, files: ClinicalFile[]): Patient {
-    const state = this.getState();
-    const newPatient: Patient = {
-      ...patient,
-      id: crypto.randomUUID(),
-      doctorId: state.user?.id || 'anonymous',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      files: files || []
+  // EVOLUTION METHODS
+  static async getEvolutions(patientId: string) {
+    const { data, error } = await supabase
+      .from('evolutions')
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('date', { ascending: false });
+    if (error) return [];
+    return data as Evolution[];
+  }
+
+  static async getAllEvolutions() {
+    const { data } = await supabase.from('evolutions').select('*');
+    return data || [];
+  }
+
+  static async addEvolution(patientId: string, content: string, authorName: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+      .from('evolutions')
+      .insert([{
+        patient_id: patientId,
+        doctor_id: user?.id,
+        author_name: authorName,
+        content,
+        date: new Date().toISOString()
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  // NOTES METHODS
+  static async getNotes() {
+    const { data, error } = await supabase
+      .from('notes')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    if (error) return [];
+    return data as Note[];
+  }
+
+  static async saveNote(note: Partial<Note>) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const payload = {
+      ...note,
+      user_id: user.id,
+      updated_at: new Date().toISOString()
     };
-    state.patients.push(newPatient);
-    this.saveState(state);
-    return newPatient;
-  }
 
-  static getPatients(): Patient[] {
-    return this.getState().patients;
-  }
-
-  static addEvolution(patientId: string, content: string): Evolution {
-    const state = this.getState();
-    const evolution: Evolution = {
-      id: crypto.randomUUID(),
-      patientId,
-      doctorId: state.user?.id || 'anonymous',
-      authorName: state.user?.fullName || 'Médico',
-      date: new Date().toISOString(),
-      content
-    };
-    state.evolutions.push(evolution);
-    this.saveState(state);
-    return evolution;
-  }
-
-  static getEvolutions(patientId: string): Evolution[] {
-    return this.getState().evolutions.filter(e => e.patientId === patientId);
-  }
-
-  static getAllEvolutions(): Evolution[] {
-    return this.getState().evolutions;
-  }
-
-  static saveNote(note: Partial<Note>): Note {
-    const state = this.getState();
-    const userId = state.user?.id || 'anonymous';
-    const existingIndex = state.notes.findIndex(n => n.id === note.id);
+    const { data, error } = await supabase
+      .from('notes')
+      .upsert(payload)
+      .select()
+      .single();
     
-    if (existingIndex > -1) {
-      state.notes[existingIndex] = { ...state.notes[existingIndex], ...note, updatedAt: new Date().toISOString() } as Note;
-      this.saveState(state);
-      return state.notes[existingIndex];
-    } else {
-      const newNote: Note = {
-        id: crypto.randomUUID(),
-        userId,
-        title: note.title || 'Nova Nota',
-        content: note.content || '',
-        updatedAt: new Date().toISOString()
-      };
-      state.notes.push(newNote);
-      this.saveState(state);
-      return newNote;
-    }
+    if (error) throw error;
+    return data;
   }
 
-  static getNotes(): Note[] {
-    const state = this.getState();
-    return state.notes.filter(n => n.userId === state.user?.id);
+  static async deleteNote(id: string) {
+    await supabase.from('notes').delete().eq('id', id);
   }
 
-  static deleteNote(id: string) {
-    const state = this.getState();
-    state.notes = state.notes.filter(n => n.id !== id);
-    this.saveState(state);
+  // COMMUNITY METHODS
+  static async getPosts() {
+    const { data, error } = await supabase
+      .from('community_posts')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) return [];
+    return data as CommunityPost[];
   }
 
-  static addPost(content: string, media?: ClinicalFile): CommunityPost {
-    const state = this.getState();
-    const post: CommunityPost = {
-      id: crypto.randomUUID(),
-      authorId: state.user?.id || 'anonymous',
-      authorName: state.user?.fullName || 'Médico',
-      authorAvatar: state.user?.avatarUrl,
-      content,
-      media,
-      reactions: { love: [], like: [] },
-      comments: [],
-      createdAt: new Date().toISOString()
-    };
-    state.communityPosts.unshift(post);
-    this.saveState(state);
-    return post;
+  static async addPost(content: string, author: UserProfile, media?: ClinicalFile) {
+    const { data, error } = await supabase
+      .from('community_posts')
+      .insert([{
+        author_id: author.id,
+        author_name: author.fullName,
+        author_avatar: author.avatarUrl,
+        content,
+        media,
+        reactions: { love: [], like: [] },
+        comments: [],
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
-  static getPosts(): CommunityPost[] {
-    return this.getState().communityPosts;
+  static async updatePost(postId: string, content: string) {
+    const { error } = await supabase
+      .from('community_posts')
+      .update({ content })
+      .eq('id', postId);
+    if (error) throw error;
   }
 
-  static reactToPost(postId: string, type: 'love' | 'like') {
-    const state = this.getState();
-    const userId = state.user?.id;
-    if (!userId) return;
-    
-    const post = state.communityPosts.find(p => p.id === postId);
+  static async deletePost(postId: string) {
+    const { error } = await supabase
+      .from('community_posts')
+      .delete()
+      .eq('id', postId);
+    if (error) throw error;
+  }
+
+  static async reactToPost(postId: string, userId: string, type: 'love' | 'like') {
+    const { data: post } = await supabase
+      .from('community_posts')
+      .select('reactions')
+      .eq('id', postId)
+      .single();
+
     if (post) {
-      const list = post.reactions[type];
+      const reactions = { ...post.reactions };
+      const list = reactions[type] || [];
       const index = list.indexOf(userId);
+      
       if (index > -1) {
         list.splice(index, 1);
       } else {
         list.push(userId);
       }
-      this.saveState(state);
+      
+      reactions[type] = list;
+
+      await supabase
+        .from('community_posts')
+        .update({ reactions })
+        .eq('id', postId);
     }
+  }
+
+  static async updateComments(postId: string, comments: CommunityComment[]) {
+    const { error } = await supabase
+      .from('community_posts')
+      .update({ comments })
+      .eq('id', postId);
+    if (error) throw error;
   }
 }

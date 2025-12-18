@@ -35,7 +35,7 @@ const SearAI: React.FC = () => {
           <div>
             <h1 className="text-xl font-bold">Sear AI</h1>
             <p className="text-xs text-blue-100 flex items-center gap-1">
-              <Sparkles size={10} /> Assistente Médico Inteligente
+              <Sparkles size={10} /> Assistente Médica Inteligente
             </p>
           </div>
         </div>
@@ -47,9 +47,9 @@ const SearAI: React.FC = () => {
             <div className="p-4 bg-white rounded-3xl shadow-sm">
                <Bot size={48} className="text-blue-600" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800">Olá! Eu sou o Sear AI.</h2>
+            <h2 className="text-2xl font-bold text-slate-800">Olá! Eu sou a Sear AI.</h2>
             <p className="text-slate-500 max-w-sm">
-              Estou pronto para ajudar com diagnósticos diferenciais, condutas terapêuticas, resumos de artigos e suporte à decisão clínica.
+              Estou pronta para ajudar com diagnósticos diferenciais, condutas terapêuticas, resumos de artigos e suporte à decisão clínica profissional.
             </p>
             <div className="grid grid-cols-2 gap-3 w-full max-w-lg mt-8">
               {["Causas de dor abdominal aguda", "Conduta para HAS estágio 2", "Efeitos colaterais do Metotrexato", "Resumo sobre Insuficiência Cardíaca"].map(q => (
@@ -87,7 +87,7 @@ const SearAI: React.FC = () => {
                 <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce"></span>
                 <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]"></span>
                 <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                Sear AI está pensando...
+                A Sear AI está processando...
               </div>
             </div>
           </div>
@@ -110,9 +110,6 @@ const SearAI: React.FC = () => {
             <Send size={20} />
           </button>
         </div>
-        <p className="text-[10px] text-slate-400 mt-4 text-center">
-          O Sear AI pode apresentar erros. Verifique informações médicas críticas com fontes oficiais.
-        </p>
       </div>
     </div>
   );

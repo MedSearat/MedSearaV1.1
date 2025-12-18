@@ -13,7 +13,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ patients, evolutions, notes, communityPosts, onAddPatient }) => {
   const stats = [
-    { label: 'Pacientes', value: patients.length, icon: <Users className="text-blue-600" />, set: 'pacientes' },
+    { label: 'Pacientes', value: patients.length, icon: <Users className="text-blue-600" />, color: 'bg-blue-100' },
     { label: 'Atendimentos', value: evolutions.length, icon: <Activity className="text-green-600" />, color: 'bg-green-100' },
     { label: 'Notas', value: notes.length, icon: <FileText className="text-amber-600" />, color: 'bg-amber-100' },
     { label: 'Comunidade', value: communityPosts.length, icon: <MessageSquare className="text-purple-600" />, color: 'bg-purple-100' },
@@ -34,8 +34,8 @@ const Dashboard: React.FC<DashboardProps> = ({ patients, evolutions, notes, comm
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Resumo Operacional</h1>
-          <p className="text-slate-500">Bem-vindo ao MedSearat. Aqui estão os dados reais da sua clínica.</p>
+          <h1 className="text-3xl font-bold text-slate-800">Visão Geral</h1>
+          <p className="text-slate-500">Bem-vindo ao MedSearat. Acompanhe aqui o resumo da sua jornada médica e registros ativos.</p>
         </div>
         <button 
           onClick={onAddPatient}
@@ -87,7 +87,7 @@ const Dashboard: React.FC<DashboardProps> = ({ patients, evolutions, notes, comm
 
         {/* Recent Patients */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-6">Pacientes Recentes</h3>
+          <h3 className="text-lg font-bold text-slate-800 mb-6">Atendimentos Recentes</h3>
           <div className="space-y-4">
             {patients.length > 0 ? (
               patients.slice(0, 5).reverse().map((p, idx) => (
@@ -106,7 +106,7 @@ const Dashboard: React.FC<DashboardProps> = ({ patients, evolutions, notes, comm
             ) : (
               <div className="text-center py-8">
                 <Users size={32} className="mx-auto text-slate-300 mb-2" />
-                <p className="text-slate-400 text-sm">Nenhum paciente ainda.</p>
+                <p className="text-slate-400 text-sm">Nenhum registro encontrado.</p>
               </div>
             )}
           </div>

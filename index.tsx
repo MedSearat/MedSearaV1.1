@@ -1,11 +1,10 @@
 
-import React from 'react';
+import React, { ReactNode, ErrorInfo, Component } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Define explicit interfaces for ErrorBoundary props and state
 interface ErrorBoundaryProps {
-  children: React.ReactNode;
+  children?: ReactNode;
 }
 
 interface ErrorBoundaryState {
@@ -13,86 +12,70 @@ interface ErrorBoundaryState {
   error: any;
 }
 
-// Error Boundary Simples para Produção
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+/**
+ * Fixed ErrorBoundary: Using explicit inheritance and class property declarations
+ * to ensure that 'state' and 'props' are correctly recognized by the TypeScript compiler.
+ */
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Explicitly declare state and props for maximum compatibility with TypeScript
+  public state: ErrorBoundaryState;
+  public props: ErrorBoundaryProps;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Fix: Properly initializing state within the constructor with correct typing
-    this.state = { hasError: false, error: null };
+    this.props = props;
+    this.state = {
+      hasError: false,
+      error: null
+    };
   }
 
-  static getDerivedStateFromError(error: any) {
+  static getDerivedStateFromError(error: any): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: any, errorInfo: any) {
+  componentDidCatch(error: any, errorInfo: ErrorInfo) {
     console.error("Critical Render Error:", error, errorInfo);
   }
 
   render() {
-    // Fix: access this.state with correct generic typing
+    // Accessing 'state' and 'props' inherited from Component
     if (this.state.hasError) {
       return (
-        <div style={{ 
-          height: '100vh', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          backgroundColor: '#f8fafc',
-          color: '#1e293b',
-          fontFamily: 'sans-serif',
-          padding: '20px',
-          textAlign: 'center'
-        }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>Sistema Temporariamente Indisponível</h1>
-          <p style={{ color: '#64748b', marginBottom: '20px' }}>Ocorreu um erro ao carregar a interface médica.</p>
-          <pre style={{ 
-            backgroundColor: '#f1f5f9', 
-            padding: '15px', 
-            borderRadius: '8px', 
-            fontSize: '12px',
-            maxWidth: '100%',
-            overflow: 'auto'
-          }}>
-            {this.state.error?.toString()}
-          </pre>
-          <button 
-            onClick={() => {
-              localStorage.removeItem('medsearat_db_v1');
-              window.location.reload();
-            }}
-            style={{
-              marginTop: '20px',
-              padding: '10px 20px',
-              backgroundColor: '#2563eb',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            Resetar Sistema e Recarregar
-          </button>
+        <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-5 text-center font-sans">
+          <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 max-w-lg">
+            <h1 className="text-2xl font-bold text-slate-800 mb-2">Sistema Indisponível</h1>
+            <p className="text-slate-500 mb-6">Ocorreu um erro inesperado na interface médica. Tente recarregar o sistema.</p>
+            <pre className="bg-slate-100 p-4 rounded-xl text-[10px] text-slate-600 overflow-auto mb-6 text-left max-h-40">
+              {this.state.error?.toString()}
+            </pre>
+            <button 
+              onClick={() => {
+                localStorage.clear();
+                window.location.reload();
+              }}
+              className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg"
+            >
+              Reiniciar Sistema
+            </button>
+          </div>
         </div>
       );
     }
-    // Fix: access this.props with correct generic typing
+    
+    // Explicitly return children from props
     return this.props.children;
   }
 }
 
 const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
+if (rootElement) {
+  const root = ReactDOM.createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
 }
-
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
-);

@@ -6,28 +6,21 @@ import { GoogleGenAI } from "@google/genai";
  * Follows the @google/genai coding guidelines.
  */
 export const getMedicalAdvice = async (prompt: string): Promise<string> => {
-  // Use process.env.API_KEY directly as per requirements
-  const apiKey = process.env.API_KEY;
-  
-  if (!apiKey) {
-    console.error("MedSearat Error: API_KEY não configurada no ambiente.");
-    return "O Sear AI está temporariamente desativado (Chave de API ausente). Por favor, contate o suporte.";
-  }
+  // Always create a new GoogleGenAI instance right before making an API call 
+  // to ensure it uses the most up-to-date API key from the execution context.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
-    // Initializing Gemini API with the required parameter format
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    // Using gemini-3-pro-preview for complex medical reasoning tasks
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
-        systemInstruction: `Você é o Sear AI, o assistente médico virtual exclusivo do sistema MedSearat.
+        systemInstruction: `Você é a Sear AI, a assistente médica virtual exclusiva do sistema MedSearat.
         Seu objetivo é fornecer suporte à decisão médica, pesquisas clínicas rápidas e orientações profissionais.
         Regras de resposta:
+        - Apresente-se no feminino: "Olá, eu sou a Sear AI".
         - Use linguagem médica técnica e profissional.
-        - Formate a resposta como um artigo médico curto.
+        - Formate a resposta como um artigo médico curto ou ficha de conduta.
         - Use títulos claros, parágrafos bem definidos.
         - Utilize negrito para destacar termos importantes.
         - Use listas (bullets) com bom espaçamento.
@@ -36,7 +29,8 @@ export const getMedicalAdvice = async (prompt: string): Promise<string> => {
       }
     });
     
-    // Extracting text output directly from the .text property of GenerateContentResponse
+    // The GenerateContentResponse object features a text property (not a method) 
+    // that directly returns the extracted string output.
     return response.text || "Desculpe, não consegui processar sua solicitação no momento.";
   } catch (error) {
     console.error("Sear AI Error:", error);

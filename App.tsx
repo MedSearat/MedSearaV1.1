@@ -9,137 +9,118 @@ import SearAI from './pages/SearAI';
 import Calculators from './pages/Calculators';
 import Profile from './pages/Profile';
 import { StorageService } from './services/storageService';
-import { Stethoscope, LogIn, ShieldCheck, User, Lock, Mail, AlertTriangle, Loader2 } from 'lucide-react';
+import { supabase } from './services/supabase';
+import { Stethoscope, ShieldCheck, User, Lock, Mail, AlertTriangle, Loader2, Database, CheckCircle2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [manualEmail, setManualEmail] = useState('');
-  const [manualPassword, setManualPassword] = useState('');
-  const [manualName, setManualName] = useState('');
+  const [dashboardData, setDashboardData] = useState({
+    patients: [],
+    evolutions: [],
+    notes: [],
+    posts: []
+  });
 
-  const decodeJwt = (token: string) => {
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+
+  const refreshData = useCallback(async () => {
+    if (!user) return;
     try {
-      if (!token) return null;
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      return JSON.parse(jsonPayload);
+      const [patients, evolutions, notes, posts] = await Promise.all([
+        StorageService.getPatients(),
+        StorageService.getAllEvolutions(),
+        StorageService.getNotes(),
+        StorageService.getPosts()
+      ]);
+      setDashboardData({ patients, evolutions, notes, posts });
     } catch (e) {
-      return null;
+      console.error("Erro ao sincronizar dados:", e);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        StorageService.getCurrentUser().then(setUser);
+      }
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        StorageService.getCurrentUser().then(setUser);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (user) refreshData();
+  }, [user, refreshData]);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      if (isRegistering) {
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { 
+            data: { full_name: fullName } 
+          }
+        });
+        
+        if (signUpError) throw signUpError;
+        
+        if (data.user) {
+          setSuccess("Registro concluído! Acesso imediato liberado.");
+          setIsRegistering(false);
+          if (!data.session) {
+             await supabase.auth.signInWithPassword({ email, password });
+          }
+        }
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) throw signInError;
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleGoogleResponse = useCallback((response: any) => {
+  const handleGoogleLogin = async () => {
     try {
-      const payload = decodeJwt(response.credential);
-      if (payload && payload.email) {
-        const loggedUser = StorageService.login(
-          payload.email,
-          payload.name || payload.email.split('@')[0],
-          payload.picture || `https://picsum.photos/seed/${payload.email}/200`
-        );
-        setUser(loggedUser);
-        setError('');
-      } else {
-        setError("Erro ao processar perfil do Google.");
-      }
-    } catch (err: any) {
-      setError(err.message || "Erro na autenticação.");
-    }
-  }, []);
-
-  useEffect(() => {
-    const initApp = () => {
-      try {
-        const dbStr = localStorage.getItem('medsearat_db_v1');
-        if (dbStr) {
-          const db = JSON.parse(dbStr);
-          if (db && db.user) setUser(db.user);
-        }
-      } catch (e) {
-        console.error("Erro na carga inicial do storage. Limpando dados corrompidos.");
-        localStorage.removeItem('medsearat_db_v1');
-      } finally {
-        // Garantimos um tempo mínimo de splash screen para estabilidade de scripts externos
-        setTimeout(() => setLoading(false), 800);
-      }
-    };
-    initApp();
-  }, []);
-
-  useEffect(() => {
-    if (!user && !loading) {
-      const checkGoogle = () => {
-        // @ts-ignore
-        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-          try {
-            // @ts-ignore
-            google.accounts.id.initialize({
-              client_id: "784323238474-example.apps.googleusercontent.com", 
-              callback: handleGoogleResponse,
-              auto_select: false
-            });
-            const btn = document.getElementById("googleBtn");
-            if (btn) {
-              // @ts-ignore
-              google.accounts.id.renderButton(btn, { 
-                theme: "outline", 
-                size: "large", 
-                width: "100%", 
-                shape: "pill" 
-              });
-            }
-          } catch (e) {
-            console.warn("Google Auth falhou ao iniciar nesta tentativa.");
-          }
-        }
-      };
-
-      const interval = setInterval(() => {
-        // @ts-ignore
-        if (typeof google !== 'undefined') {
-          checkGoogle();
-          clearInterval(interval);
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [user, loading, isRegistering, handleGoogleResponse]);
-
-  const handleManualAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (!manualEmail || !manualPassword) {
-      setError("Preencha email e senha.");
-      return;
-    }
-    try {
-      const loggedUser = StorageService.login(
-        manualEmail,
-        isRegistering ? manualName : manualEmail.split('@')[0],
-        `https://picsum.photos/seed/${manualEmail}/200`
-      );
-      setUser(loggedUser);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin }
+      });
+      if (error) throw error;
     } catch (err: any) {
       setError(err.message);
     }
   };
 
-  if (loading) return (
+  if (loading && !user) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
       <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
-      <p className="text-slate-500 font-bold animate-pulse">Iniciando MedSearat...</p>
+      <p className="text-slate-500 font-bold animate-pulse">MedSearat está carregando...</p>
     </div>
   );
 
@@ -147,6 +128,9 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-white flex flex-col lg:flex-row">
         <div className="hidden lg:flex lg:w-1/2 bg-blue-600 text-white p-16 flex-col justify-between relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10 pointer-events-none">
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
+          </div>
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-16">
               <div className="bg-white p-2 rounded-xl text-blue-600">
@@ -154,61 +138,89 @@ const App: React.FC = () => {
               </div>
               <h1 className="text-4xl font-black tracking-tighter text-white">MedSearat</h1>
             </div>
-            <h2 className="text-6xl font-black leading-tight tracking-tight mb-8">Gestão Médica <br /><span className="text-blue-200">Profissional.</span></h2>
-            <div className="flex items-center gap-3 bg-white/10 p-4 rounded-2xl backdrop-blur-md inline-flex">
-              <ShieldCheck size={24} className="text-blue-200" />
-              <span className="font-semibold text-white">Segurança HIPAA e Criptografia Local</span>
+            <h2 className="text-6xl font-black leading-tight tracking-tight mb-8">Gestão Médica <br /><span className="text-blue-200">Totalmente Segura.</span></h2>
+            <div className="flex flex-col gap-4">
+               <div className="flex items-center gap-3 bg-white/10 p-4 rounded-2xl backdrop-blur-md inline-flex self-start">
+                <ShieldCheck size={24} className="text-blue-200" />
+                <span className="font-semibold text-white">Proteção de Dados Sensíveis</span>
+              </div>
+               <div className="flex items-center gap-3 bg-white/10 p-4 rounded-2xl backdrop-blur-md inline-flex self-start">
+                <Database size={24} className="text-blue-200" />
+                <span className="font-semibold text-white">Prontuários Sincronizados</span>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="flex-1 flex items-center justify-center p-8 bg-slate-50/30">
           <div className="w-full max-w-md space-y-8">
-            <div className="text-center lg:text-left">
-              <h2 className="text-3xl font-black text-slate-900">Acesso ao Sistema</h2>
-              <p className="text-slate-500 text-sm">Entre com suas credenciais médicas.</p>
+            <div className="text-center">
+              <div className="flex flex-col items-center mb-6">
+                 <div className="bg-blue-600 p-4 rounded-3xl text-white mb-4 shadow-2xl shadow-blue-200">
+                    <Stethoscope size={48} />
+                 </div>
+                 <h2 className="text-5xl font-black text-slate-900 tracking-tighter mb-1">MedSearat</h2>
+                 <p className="text-slate-400 text-xs font-black uppercase tracking-[0.3em]">Plataforma Médica Integrada</p>
+              </div>
             </div>
 
             {error && (
-              <div className="p-4 bg-red-50 text-red-700 text-xs rounded-2xl border border-red-100 font-bold flex items-center gap-3">
+              <div className="p-4 bg-red-50 text-red-700 text-xs rounded-2xl border border-red-100 font-bold flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
                 <AlertTriangle size={18} className="shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xl space-y-6">
-              <form className="space-y-4" onSubmit={handleManualAuth}>
+            {success && (
+              <div className="p-4 bg-green-50 text-green-700 text-xs rounded-2xl border border-green-100 font-bold flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                <CheckCircle2 size={18} className="shrink-0" />
+                <span>{success}</span>
+              </div>
+            )}
+
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl space-y-6">
+              <form className="space-y-4" onSubmit={handleAuth}>
                 {isRegistering && (
-                  <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input type="text" placeholder="Nome Completo" value={manualName} onChange={e => setManualName(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-xl outline-none" />
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={18} />
+                    <input type="text" placeholder="Nome Completo" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all" required />
                   </div>
                 )}
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input type="email" placeholder="E-mail" value={manualEmail} onChange={e => setManualEmail(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-xl outline-none" />
+                <div className="relative group">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={18} />
+                  <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all" required />
                 </div>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input type="password" placeholder="Senha" value={manualPassword} onChange={e => setManualPassword(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-xl outline-none" />
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={18} />
+                  <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all" required />
                 </div>
-                <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">
-                  {isRegistering ? 'Criar Registro' : 'Entrar'}
+                <button type="submit" disabled={loading} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all disabled:opacity-50 active:scale-[0.98]">
+                  {loading ? 'Processando...' : (isRegistering ? 'Criar Registro' : 'Entrar no Sistema')}
                 </button>
               </form>
 
               <div className="relative flex items-center py-2">
                 <div className="flex-grow border-t border-slate-100"></div>
-                <span className="mx-4 text-slate-400 text-[10px] font-black uppercase tracking-widest">Acesso Rápido</span>
+                <span className="mx-4 text-slate-400 text-[10px] font-black uppercase tracking-widest">Autenticação Segura</span>
                 <div className="flex-grow border-t border-slate-100"></div>
               </div>
 
-              <div id="googleBtn" className="w-full overflow-hidden rounded-full min-h-[44px]"></div>
+              <button 
+                onClick={handleGoogleLogin}
+                className="w-full py-3 border border-slate-200 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-50 transition-all"
+              >
+                <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
+                Entrar com Google
+              </button>
 
-              <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="w-full text-center text-xs text-slate-500 font-bold hover:text-blue-600">
-                {isRegistering ? 'Já tem conta? Entrar' : 'Não tem conta? Cadastre-se'}
+              <button type="button" onClick={() => { setIsRegistering(!isRegistering); setError(''); setSuccess(''); }} className="w-full text-center text-xs text-slate-500 font-bold hover:text-blue-600 transition-colors">
+                {isRegistering ? 'Já possui conta? Fazer Login' : 'Ainda não é cadastrado? Criar Registro'}
               </button>
             </div>
+            
+            <p className="text-center text-[10px] text-slate-400 font-medium px-8">
+              Ao continuar, você concorda com os termos de segurança e privacidade do MedSearat para gestão de dados médicos.
+            </p>
           </div>
         </div>
       </div>
@@ -217,13 +229,13 @@ const App: React.FC = () => {
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab} user={user}>
-      <Suspense fallback={<div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2"><Loader2 className="animate-spin" size={20} /> Carregando módulo...</div>}>
+      <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={32} /></div>}>
         {activeTab === 'dashboard' && (
           <Dashboard 
-            patients={StorageService.getPatients()} 
-            evolutions={StorageService.getAllEvolutions()} 
-            notes={StorageService.getNotes()} 
-            communityPosts={StorageService.getPosts()}
+            patients={dashboardData.patients} 
+            evolutions={dashboardData.evolutions} 
+            notes={dashboardData.notes} 
+            communityPosts={dashboardData.posts}
             onAddPatient={() => setActiveTab('patients')} 
           />
         )}

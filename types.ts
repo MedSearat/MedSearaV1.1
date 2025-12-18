@@ -9,6 +9,7 @@ export interface UserProfile {
   id: string;
   email: string;
   fullName: string;
+  profession?: string;
   age?: number;
   gender?: Gender;
   avatarUrl?: string;
@@ -24,7 +25,7 @@ export interface Patient {
   contact: string;
   email: string;
   consultationDate: string;
-  // Clinical History
+  // História Clínica Completa
   mainComplaint: string;
   currentHistory: string;
   physicalExam: string;
@@ -33,7 +34,6 @@ export interface Patient {
   diagnosis: string;
   treatment: string;
   recommendations: string;
-  // Metadata
   createdAt: string;
   updatedAt: string;
   files: ClinicalFile[];
@@ -43,7 +43,7 @@ export interface ClinicalFile {
   id: string;
   name: string;
   type: 'image' | 'video' | 'document';
-  url: string;
+  url: string; // Base64 or Supabase Storage URL
   uploadedAt: string;
 }
 
@@ -72,11 +72,11 @@ export interface CommunityPost {
   content: string;
   media?: ClinicalFile;
   reactions: {
-    love: string[]; // User IDs
-    like: string[]; // User IDs
+    love: string[];
+    like: string[];
   };
   comments: CommunityComment[];
-  createdAt: string;
+  created_at: string;
 }
 
 export interface CommunityComment {
@@ -87,11 +87,3 @@ export interface CommunityComment {
   media?: ClinicalFile;
   createdAt: string;
 }
-
-export type AppState = {
-  user: UserProfile | null;
-  patients: Patient[];
-  evolutions: Evolution[];
-  notes: Note[];
-  communityPosts: CommunityPost[];
-};

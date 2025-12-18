@@ -13,36 +13,52 @@ const INITIAL_STATE: AppState = {
 
 export class StorageService {
   private static getState(): AppState {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : INITIAL_STATE;
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (!data) return INITIAL_STATE;
+      
+      const parsed = JSON.parse(data);
+      // Garantir que todas as propriedades obrigatórias existam
+      return {
+        user: parsed.user || null,
+        patients: Array.isArray(parsed.patients) ? parsed.patients : [],
+        evolutions: Array.isArray(parsed.evolutions) ? parsed.evolutions : [],
+        notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+        communityPosts: Array.isArray(parsed.communityPosts) ? parsed.communityPosts : []
+      };
+    } catch (e) {
+      console.error("Storage Corrompido. Resetando para estado inicial.", e);
+      localStorage.removeItem(STORAGE_KEY);
+      return INITIAL_STATE;
+    }
   }
 
   private static saveState(state: AppState) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.error("Erro ao salvar no Storage:", e);
+    }
   }
 
-  // Auth
-  static login(email: string, fullName: string, avatarUrl?: string): UserProfile {
+  static login(email: string, fullName: string, avatarUrl: string): UserProfile {
     const state = this.getState();
-    let user = state.user;
-    
-    // Check if user was previously deleted
     const deletedUsers = JSON.parse(localStorage.getItem('medsearat_deleted_users') || '[]');
+    
     if (deletedUsers.includes(email)) {
-       throw new Error("Esta conta foi encerrada definitivamente. Por favor, crie uma nova conta com um email diferente.");
+       throw new Error("Esta conta foi encerrada definitivamente.");
     }
 
-    if (!user || user.email !== email) {
-      user = {
-        id: crypto.randomUUID(),
-        email,
-        fullName,
-        avatarUrl: avatarUrl || `https://picsum.photos/seed/${email}/200`,
-        createdAt: new Date().toISOString()
-      };
-      state.user = user;
-      this.saveState(state);
-    }
+    const user: UserProfile = {
+      id: state.user?.id || crypto.randomUUID(),
+      email,
+      fullName,
+      avatarUrl,
+      createdAt: state.user?.createdAt || new Date().toISOString()
+    };
+    
+    state.user = user;
+    this.saveState(state);
     return user;
   }
 
@@ -58,8 +74,6 @@ export class StorageService {
       const deletedUsers = JSON.parse(localStorage.getItem('medsearat_deleted_users') || '[]');
       deletedUsers.push(state.user.email);
       localStorage.setItem('medsearat_deleted_users', JSON.stringify(deletedUsers));
-      
-      // Clear data for this user
       localStorage.removeItem(STORAGE_KEY);
       window.location.reload();
     }
@@ -67,22 +81,21 @@ export class StorageService {
 
   static updateProfile(data: Partial<UserProfile>): UserProfile {
     const state = this.getState();
-    if (!state.user) throw new Error("Not authenticated");
+    if (!state.user) throw new Error("Não autenticado");
     state.user = { ...state.user, ...data };
     this.saveState(state);
     return state.user;
   }
 
-  // Patients
   static addPatient(patient: Omit<Patient, 'id' | 'createdAt' | 'updatedAt' | 'doctorId' | 'files'>, files: ClinicalFile[]): Patient {
     const state = this.getState();
     const newPatient: Patient = {
       ...patient,
       id: crypto.randomUUID(),
-      doctorId: state.user?.id || '',
+      doctorId: state.user?.id || 'anonymous',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      files: files
+      files: files || []
     };
     state.patients.push(newPatient);
     this.saveState(state);
@@ -93,13 +106,12 @@ export class StorageService {
     return this.getState().patients;
   }
 
-  // Evolutions
   static addEvolution(patientId: string, content: string): Evolution {
     const state = this.getState();
     const evolution: Evolution = {
       id: crypto.randomUUID(),
       patientId,
-      doctorId: state.user?.id || '',
+      doctorId: state.user?.id || 'anonymous',
       authorName: state.user?.fullName || 'Médico',
       date: new Date().toISOString(),
       content
@@ -113,10 +125,13 @@ export class StorageService {
     return this.getState().evolutions.filter(e => e.patientId === patientId);
   }
 
-  // Notes
+  static getAllEvolutions(): Evolution[] {
+    return this.getState().evolutions;
+  }
+
   static saveNote(note: Partial<Note>): Note {
     const state = this.getState();
-    const userId = state.user?.id || '';
+    const userId = state.user?.id || 'anonymous';
     const existingIndex = state.notes.findIndex(n => n.id === note.id);
     
     if (existingIndex > -1) {
@@ -138,7 +153,8 @@ export class StorageService {
   }
 
   static getNotes(): Note[] {
-    return this.getState().notes.filter(n => n.userId === this.getState().user?.id);
+    const state = this.getState();
+    return state.notes.filter(n => n.userId === state.user?.id);
   }
 
   static deleteNote(id: string) {
@@ -147,12 +163,11 @@ export class StorageService {
     this.saveState(state);
   }
 
-  // Community
   static addPost(content: string, media?: ClinicalFile): CommunityPost {
     const state = this.getState();
     const post: CommunityPost = {
       id: crypto.randomUUID(),
-      authorId: state.user?.id || '',
+      authorId: state.user?.id || 'anonymous',
       authorName: state.user?.fullName || 'Médico',
       authorAvatar: state.user?.avatarUrl,
       content,
@@ -172,7 +187,9 @@ export class StorageService {
 
   static reactToPost(postId: string, type: 'love' | 'like') {
     const state = this.getState();
-    const userId = state.user?.id || '';
+    const userId = state.user?.id;
+    if (!userId) return;
+    
     const post = state.communityPosts.find(p => p.id === postId);
     if (post) {
       const list = post.reactions[type];

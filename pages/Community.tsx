@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Heart, ThumbsUp, MessageSquare, Send, Paperclip, Image as ImageIcon, Video, Trash2, User } from 'lucide-react';
+import { Heart, ThumbsUp, MessageSquare, Send, Paperclip, Image as ImageIcon, Video, Trash2 } from 'lucide-react';
 import { StorageService } from '../services/storageService';
 import { CommunityPost, ClinicalFile } from '../types';
 
@@ -43,19 +43,21 @@ const Community: React.FC<{ user: any }> = ({ user }) => {
     }
   };
 
+  // Prevenir quebra se o usuário não estiver carregado (embora o App.tsx já filtre)
+  if (!user) return null;
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-in slide-in-from-bottom-8 duration-500">
       <header className="text-center mb-8">
         <h1 className="text-3xl font-bold text-slate-800">Comunidade Clínica</h1>
-        <p className="text-slate-500">Espaço profissional para troca de conhecimento e casos clínicos.</p>
+        <p className="text-slate-500">Espaço profissional para troca de conhecimento.</p>
       </header>
 
-      {/* Create Post */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex gap-4">
-          <img src={user?.avatarUrl} className="w-10 h-10 rounded-full border" />
+          <img src={user.avatarUrl || `https://picsum.photos/seed/${user.email}/200`} className="w-10 h-10 rounded-full border bg-slate-100" />
           <textarea 
-            placeholder="O que deseja compartilhar com a comunidade médica hoje?"
+            placeholder="O que deseja compartilhar com a comunidade médica?"
             className="flex-1 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[100px] text-sm"
             value={newPostContent} onChange={e => setNewPostContent(e.target.value)}
           />
@@ -67,7 +69,7 @@ const Community: React.FC<{ user: any }> = ({ user }) => {
               <img src={pendingMedia.url} className="h-24 w-auto rounded-lg border" />
             ) : (
               <div className="h-24 px-4 flex items-center gap-2 bg-slate-50 rounded-lg border text-xs">
-                {pendingMedia.type === 'video' ? <Video /> : <Paperclip />} {pendingMedia.name}
+                {pendingMedia.type === 'video' ? <Video size={16} /> : <Paperclip size={16} />} {pendingMedia.name}
               </div>
             )}
             <button onClick={() => setPendingMedia(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg">
@@ -100,12 +102,11 @@ const Community: React.FC<{ user: any }> = ({ user }) => {
         </div>
       </div>
 
-      {/* Feed */}
       <div className="space-y-6">
-        {posts.map(post => (
+        {posts.length > 0 ? posts.map(post => (
           <article key={post.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 flex items-center gap-3">
-              <img src={post.authorAvatar || `https://picsum.photos/seed/${post.authorId}/200`} className="w-10 h-10 rounded-full border" />
+              <img src={post.authorAvatar || `https://picsum.photos/seed/${post.authorId}/200`} className="w-10 h-10 rounded-full border bg-slate-100" />
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">{post.authorName}</h4>
                 <p className="text-[10px] text-slate-400">{new Date(post.createdAt).toLocaleString()}</p>
@@ -146,7 +147,7 @@ const Community: React.FC<{ user: any }> = ({ user }) => {
                   <ThumbsUp size={18} fill={post.reactions.like.includes(user.id) ? 'currentColor' : 'none'} />
                   <span className="text-xs font-bold">{post.reactions.like.length}</span>
                 </button>
-                <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-800">
+                <div className="flex items-center gap-1.5">
                   <MessageSquare size={18} />
                   <span className="text-xs font-bold">{post.comments.length}</span>
                 </div>
@@ -154,7 +155,12 @@ const Community: React.FC<{ user: any }> = ({ user }) => {
               <div className="text-[10px] uppercase font-black tracking-widest text-slate-300">MedSearat Social</div>
             </div>
           </article>
-        ))}
+        )) : (
+          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
+            <MessageSquare size={48} className="mx-auto text-slate-200 mb-4" />
+            <p className="text-slate-400 font-medium">Seja o primeiro a publicar na comunidade!</p>
+          </div>
+        )}
       </div>
     </div>
   );

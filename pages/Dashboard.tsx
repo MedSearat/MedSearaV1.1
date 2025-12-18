@@ -7,26 +7,27 @@ interface DashboardProps {
   patients: any[];
   evolutions: any[];
   notes: any[];
+  communityPosts: any[];
   onAddPatient: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ patients, evolutions, notes, onAddPatient }) => {
+const Dashboard: React.FC<DashboardProps> = ({ patients, evolutions, notes, communityPosts, onAddPatient }) => {
   const stats = [
-    { label: 'Pacientes', value: patients.length, icon: <Users className="text-blue-600" />, color: 'bg-blue-100' },
-    { label: 'Evoluções', value: evolutions.length, icon: <Activity className="text-green-600" />, color: 'bg-green-100' },
+    { label: 'Pacientes', value: patients.length, icon: <Users className="text-blue-600" />, set: 'pacientes' },
+    { label: 'Atendimentos', value: evolutions.length, icon: <Activity className="text-green-600" />, color: 'bg-green-100' },
     { label: 'Notas', value: notes.length, icon: <FileText className="text-amber-600" />, color: 'bg-amber-100' },
-    { label: 'Comunidade', value: 24, icon: <MessageSquare className="text-purple-600" />, color: 'bg-purple-100' },
+    { label: 'Comunidade', value: communityPosts.length, icon: <MessageSquare className="text-purple-600" />, color: 'bg-purple-100' },
   ];
 
-  // Dummy chart data
+  // Dummy chart data - Could be replaced with real evolution data over time
   const data = [
-    { name: 'Seg', atendimentos: 12 },
-    { name: 'Ter', atendimentos: 19 },
-    { name: 'Qua', atendimentos: 15 },
-    { name: 'Qui', atendimentos: 22 },
-    { name: 'Sex', atendimentos: 30 },
-    { name: 'Sab', atendimentos: 8 },
-    { name: 'Dom', atendimentos: 5 },
+    { name: 'Seg', atendimentos: evolutions.filter(e => new Date(e.date).getDay() === 1).length || 0 },
+    { name: 'Ter', atendimentos: evolutions.filter(e => new Date(e.date).getDay() === 2).length || 0 },
+    { name: 'Qua', atendimentos: evolutions.filter(e => new Date(e.date).getDay() === 3).length || 0 },
+    { name: 'Qui', atendimentos: evolutions.filter(e => new Date(e.date).getDay() === 4).length || 0 },
+    { name: 'Sex', atendimentos: evolutions.filter(e => new Date(e.date).getDay() === 5).length || 0 },
+    { name: 'Sab', atendimentos: evolutions.filter(e => new Date(e.date).getDay() === 6).length || 0 },
+    { name: 'Dom', atendimentos: evolutions.filter(e => new Date(e.date).getDay() === 0).length || 0 },
   ];
 
   return (
@@ -48,7 +49,7 @@ const Dashboard: React.FC<DashboardProps> = ({ patients, evolutions, notes, onAd
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, idx) => (
           <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className={`p-3 rounded-xl ${stat.color}`}>
+            <div className={`p-3 rounded-xl ${stat.color || 'bg-blue-100'}`}>
               {stat.icon}
             </div>
             <div>
@@ -89,7 +90,7 @@ const Dashboard: React.FC<DashboardProps> = ({ patients, evolutions, notes, onAd
           <h3 className="text-lg font-bold text-slate-800 mb-6">Pacientes Recentes</h3>
           <div className="space-y-4">
             {patients.length > 0 ? (
-              patients.slice(0, 5).map((p, idx) => (
+              patients.slice(0, 5).reverse().map((p, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-100">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
